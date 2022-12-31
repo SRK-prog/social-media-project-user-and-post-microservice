@@ -1,5 +1,7 @@
 const router = require("express").Router();
 const Conversation = require("../models/Conversation");
+const Message = require("../models/Message");
+const Utils = require("../utils/utils");
 
 //new conv
 
@@ -19,11 +21,24 @@ router.post("/", async (req, res) => {
 
 router.get("/:userId", async (req, res) => {
   try {
-    const conversation = await Conversation.find({
+    const conversations = await Conversation.find({
       members: { $in: [req.params.userId] },
     });
-    res.status(200).json(conversation);
+    const ids = conversations.map((conv) => conv._id.toString());
+    const messages = await Message.aggregate([
+      { $match: { conversationId: { $in: ids } } },
+      { $sort: { createdAt: -1 } },
+      {
+        $group: { _id: "$conversationId", doc: { $first: "$$ROOT" } },
+      },
+      { $sort: { "doc.createdAt": -1 } },
+    ]);
+    
+    const result = Utils.mergeConversations(conversations, messages);
+
+    res.status(200).json(result);
   } catch (err) {
+    console.log("err: ", err);
     res.status(500).json(err);
   }
 });

@@ -4,13 +4,10 @@ const User = require("../models/User");
 router.get("/", async (req, res) => {
   const username = req.query.username;
   try {
-    findUser = await User.find({
+    const result = await User.find({
       username: { $regex: username, $options: "$i" },
-    });
-    var newArray = findUser.map((n) => {
-      return n.username;
-    });
-    res.status(200).json(newArray);
+    }).select("username email profilepicture")
+    res.status(200).json(result);
   } catch (err) {
     res.status(500).json(err);
   }
