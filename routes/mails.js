@@ -3,10 +3,9 @@ const Mail = require("../models/Mail");
 
 //CREATE POST
 router.post("/", async (req, res) => {
-  const newMail = new Mail(req.body);
   try {
-    const savedMail = await newMail.save();
-    res.status(200).json(savedMail);
+    const result = await new Mail(req.body).save();
+    res.status(200).json(result);
   } catch (err) {
     res.status(500).json(err);
   }

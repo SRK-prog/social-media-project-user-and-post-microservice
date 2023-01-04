@@ -25,7 +25,7 @@ router.post("/signup", async (req, res) => {
 router.post("/login", async (req, res) => {
   try {
     const user = await User.findOne({ email: req.body.email });
-    if (user === null) {
+    if (!user) {
       res
         .status(400)
         .json("The email address you entered isn't connected to an account.");

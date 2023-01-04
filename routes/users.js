@@ -14,9 +14,11 @@ router.put("/:id", async (req, res) => {
       }
     }
     try {
-      const user = await User.findByIdAndUpdate(req.params.id, {
-        $set: req.body,
-      });
+      const user = await User.findByIdAndUpdate(
+        req.params.id,
+        { $set: req.body },
+        { new: true }
+      );
       const { password, ...others } = user._doc;
       res.status(200).json(others);
     } catch (err) {
@@ -77,12 +79,16 @@ router.put("/:id/follow", async (req, res) => {
       const user = await User.findById(req.params.id);
       const currentUser = await User.findById(req.body.userId);
       if (!user.followers.includes(req.body.userId)) {
-        await user.updateOne({ $push: { followers: req.body.userId } });
-        await currentUser.updateOne({ $push: { followings: req.params.id } });
+        await Promise.all([
+          user.updateOne({ $push: { followers: req.body.userId } }),
+          currentUser.updateOne({ $push: { followings: req.params.id } }),
+        ]);
         res.status(200).json("followed");
       } else {
-        await user.updateOne({ $pull: { followers: req.body.userId } });
-        await currentUser.updateOne({ $pull: { followings: req.params.id } });
+        await Promise.all([
+          user.updateOne({ $pull: { followers: req.body.userId } }),
+          currentUser.updateOne({ $pull: { followings: req.params.id } }),
+        ]);
         res.status(200).json("unfollowed");
       }
     } catch (err) {

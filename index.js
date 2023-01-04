@@ -8,6 +8,7 @@ const conversationRoute = require("./routes/conversations");
 const messageRoute = require("./routes/messages");
 const mailRoute = require("./routes/mails");
 const searchRoute = require("./routes/search");
+const commentRoute = require("./routes/comment");
 const cors = require("cors");
 
 const app = express();
@@ -19,9 +20,8 @@ const PORT = process.env.PORT || 5000;
 
 mongoose
   .connect(process.env.MONGO_URL)
-  .then(console.log("connected to mongo"))
+  .then(() => console.log("connected to mongo"))
   .catch((err) => console.log(err));
-
 
 app.use("/api/auth", authRoute);
 app.use("/api/users", userRoute);
@@ -30,7 +30,8 @@ app.use("/api/conversations", conversationRoute);
 app.use("/api/messages", messageRoute);
 app.use("/api/mail", mailRoute);
 app.use("/api/search", searchRoute);
+app.use("/api/comments", commentRoute);
 
 app.listen(PORT, () => {
-  console.log(`server running on ${PORT}`);
+  console.log("server running on", PORT);
 });

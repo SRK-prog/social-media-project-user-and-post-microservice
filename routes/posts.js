@@ -4,7 +4,7 @@ const Post = require("../models/Post");
 
 //CREATE POST
 router.post("/", async (req, res) => {
-  const newPost = new Post(req.body);
+  const newPost = new Post({ ...req.body, user: req.body.userId });
   try {
     const savedPost = await newPost.save();
     res.status(200).json(savedPost);
@@ -71,9 +71,11 @@ router.get("/", async (req, res) => {
   try {
     let posts;
     if (username) {
-      posts = await Post.find({ username });
+      posts = await Post.find({ username })
+        .sort({ createdAt: -1 })
+        .populate("user");
     } else {
-      posts = await Post.find();
+      posts = await Post.find().sort({ createdAt: -1 }).populate("user");
     }
     res.status(200).json(posts);
   } catch (err) {
@@ -116,13 +118,13 @@ router.put("/:id/comment", async (req, res) => {
 router.get("/timeline/:userId", async (req, res) => {
   try {
     const currentUser = await User.findById(req.params.userId);
-    const friendPosts = await Promise.all(
-      currentUser.followings.map((friendId) => {
-        return Post.find({ userId: friendId });
-      })
-    );
-    const FrndsPosts = friendPosts.map((frnds) => frnds[0]);
-    res.status(200).json(FrndsPosts);
+    const results = await Post.find({
+      userId: { $in: currentUser.followings },
+    })
+      .sort({ createdAt: -1 })
+      .populate("user");
+    if (!results) return res.status(404).json([]);
+    res.status(200).json(results);
   } catch (err) {
     res.status(500).json(err);
   }
@@ -133,7 +135,9 @@ router.get("/timeline/:userId", async (req, res) => {
 router.get("/profile/:username", async (req, res) => {
   try {
     const user = await User.findOne({ username: req.params.username });
-    const posts = await Post.find({ username: user.username });
+    const posts = await Post.find({ username: user.username })
+      .sort({ createdAt: -1 })
+      .populate("user");
     res.status(200).json(posts);
   } catch (err) {
     res.status(500).json(err);
