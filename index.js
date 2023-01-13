@@ -23,6 +23,8 @@ mongoose
   .then(() => console.log("connected to mongo"))
   .catch((err) => console.log(err));
 
+app.get("/", (req, res) => res.send("Microservice Running"));
+
 app.use("/api/auth", authRoute);
 app.use("/api/users", userRoute);
 app.use("/api/posts", postRoute);

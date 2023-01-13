@@ -60,12 +60,15 @@ router.get("/:username", async (req, res) => {
 router.get("/", async (req, res) => {
   const userId = req.query.userId;
   const username = req.query.username;
+  const query = userId ? { _id: userId } : { username };
+  if (!query) {
+    return res.status(400).json("userId/username missing!");
+  }
   try {
-    const user = userId
-      ? await User.findById(userId)
-      : await User.findOne({ username: username });
-    const { password, updatedAt, ...other } = user._doc;
-    res.status(200).json(other);
+    const user = await User.findOne(query).select(
+      "username email profilepicture createdAt lastSeen"
+    );
+    res.status(200).json(user);
   } catch (err) {
     res.status(500).json(err);
   }
