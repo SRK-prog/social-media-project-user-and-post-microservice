@@ -1,6 +1,7 @@
 const router = require("express").Router();
-const User = require("../models/User");
 const bcrypt = require("bcrypt");
+const User = require("../models/User");
+const Conversation = require("../models/Conversation");
 
 //ProfileUpdate
 router.put("/:id", async (req, res) => {
@@ -76,31 +77,52 @@ router.get("/", async (req, res) => {
 
 //follow
 
-router.put("/:id/follow", async (req, res) => {
-  if (req.body.userId !== req.params.id) {
-    try {
-      const user = await User.findById(req.params.id);
-      const currentUser = await User.findById(req.body.userId);
-      if (!user.followers.includes(req.body.userId)) {
-        await Promise.all([
-          user.updateOne({ $push: { followers: req.body.userId } }),
-          currentUser.updateOne({ $push: { followings: req.params.id } }),
-        ]);
-        res.status(200).json("followed");
-      } else {
-        await Promise.all([
-          user.updateOne({ $pull: { followers: req.body.userId } }),
-          currentUser.updateOne({ $pull: { followings: req.params.id } }),
-        ]);
-        res.status(200).json("unfollowed");
-      }
-    } catch (err) {
-      res.status(500).json(err);
+router.put("/profile/follow", async (req, res) => {
+  const { requesterId, profileId } = req.body;
+  if (requesterId === profileId)
+    return res.status(403).json("You can't follow yourself");
+  try {
+    const [requester, profile] = await Promise.all([
+      User.findById(requesterId),
+      User.findById(profileId),
+    ]);
+
+    if (!requester || !profile)
+      return res.status(404).json("profile or your account is not available");
+
+    if (!profile.followers.includes(requesterId)) {
+      await Promise.all([
+        profile.updateOne({ $push: { followers: requesterId } }),
+        requester.updateOne({ $push: { followings: profileId } }),
+        addConversation(requester, profileId),
+      ]);
+      res.status(200).json("followed");
+    } else {
+      await Promise.all([
+        profile.updateOne({ $pull: { followers: requesterId } }),
+        requester.updateOne({ $pull: { followings: profileId } }),
+        removeConversation(requester, profileId),
+      ]);
+      res.status(200).json("unfollowed");
     }
-  } else {
-    res.status(403).json("you cant follow yourself");
+  } catch (error) {
+    res.status(500).json(error);
   }
 });
+
+async function addConversation(user, profileId) {
+  if (!user.followers.includes(profileId)) {
+    await new Conversation({ members: [user._id.toString(), profileId] }).save();
+  }
+}
+
+async function removeConversation(user, profileId) {
+  if (!user.followers.includes(profileId)) {
+    await Conversation.findOneAndDelete({
+      members: { $all: [user._id.toString(), profileId] },
+    });
+  }
+}
 
 //get friends
 router.get("/followingfrnds/:userId", async (req, res) => {

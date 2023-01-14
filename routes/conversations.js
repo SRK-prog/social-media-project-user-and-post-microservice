@@ -33,7 +33,7 @@ router.get("/:userId", async (req, res) => {
       },
       { $sort: { "doc.createdAt": -1 } },
     ]);
-    
+
     const result = Utils.mergeConversations(conversations, messages);
 
     res.status(200).json(result);
@@ -58,7 +58,7 @@ router.get("/find/:firstUserId/:secondUserId", async (req, res) => {
 
 router.delete("/delete/:firstUserId/:secondUserId", async (req, res) => {
   try {
-    const conversation = await Conversation.findOneAndDelete({
+    await Conversation.findOneAndDelete({
       members: { $all: [req.params.firstUserId, req.params.secondUserId] },
     });
     res.status(200).json("conversation deleted");
