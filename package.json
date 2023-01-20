@@ -1,11 +1,11 @@
 {
-  "name": "blogwebsite",
+  "name": "user-and-post-microservice",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "server.js",
   "scripts": {
-    "start": "index.js",
-    "dev": "nodemon index.js"
+    "start": "node server.js",
+    "dev": "nodemon server.js"
   },
   "author": "srk",
   "license": "ISC",
@@ -16,9 +16,12 @@
     "dotenv": "^10.0.0",
     "envdot": "^0.0.3",
     "express": "^4.17.1",
+    "jsonwebtoken": "^9.0.0",
     "mongoose": "^6.0.12",
+    "morgan": "^1.10.0",
     "multer": "^1.4.3",
     "nodemon": "^2.0.14",
-    "path": "^0.12.7"
+    "path": "^0.12.7",
+    "yup": "^0.32.11"
   }
 }

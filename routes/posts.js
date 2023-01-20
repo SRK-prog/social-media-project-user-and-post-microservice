@@ -1,146 +1,149 @@
 const router = require("express").Router();
 const User = require("../models/User");
 const Post = require("../models/Post");
+const verifyToken = require("../middlewares/verifyToken");
+const Responser = require("../utils/responser");
+const { postMessages, DEFAULTS } = require("../constants");
+
+const { SUCCESS, ERROR } = postMessages;
 
 //CREATE POST
-router.post("/", async (req, res) => {
-  const newPost = new Post({ ...req.body, user: req.body.userId });
+router.post("/", verifyToken, async (req, res) => {
+  const { user, ...rest } = req.body;
+  const userId = user._id;
+  const response = new Responser(res);
   try {
-    const savedPost = await newPost.save();
-    res.status(200).json(savedPost);
-  } catch (err) {
-    res.status(500).json(err);
+    const result = await new Post({ ...rest, user: userId, userId }).save();
+    response.send({ message: SUCCESS.CREATED, response: result });
+  } catch (error) {
+    response.error({ message: ERROR.CREATING, error });
   }
 });
 
 //UPDATE POST
-router.put("/:id", async (req, res) => {
+router.put("/", verifyToken, async (req, res) => {
+  const { user, postId, ...postData } = req.body;
+  const userId = user.userId;
+  const response = new Responser(res);
   try {
-    const post = await Post.findById(req.params.id);
-    if (post.username === req.body.username) {
-      try {
-        const updatedPost = await Post.findByIdAndUpdate(
-          req.params.id,
-          { $set: req.body },
-          { new: true }
-        );
-        res.status(200).json(updatedPost);
-      } catch (err) {
-        res.status(500).json(err);
-      }
-    } else {
-      res.status(401).json("You can update only your post!");
+    const post = await Post.findById(postId);
+    if (userId !== post.userId) {
+      const message = ERROR.UPDATE_YOURS;
+      throw { message, status: 401, error: message };
     }
+
+    const result = await Post.findByIdAndUpdate(
+      postId,
+      { $set: postData },
+      { new: true }
+    );
+    response.send({ message: SUCCESS.UPDATED, response: result });
   } catch (err) {
-    res.status(500).json(err);
+    response.error(err);
   }
 });
 
 //DELETE POST
-router.delete("/:id", async (req, res) => {
+router.delete("/", verifyToken, async (req, res) => {
+  const { user, postId } = req.body;
+  const userId = user.userId;
+  const response = new Responser(res);
   try {
-    const post = await Post.findById(req.params.id);
-    if (post.username === req.body.username) {
-      try {
-        await post.delete();
-        res.status(200).json("Post has been deleted...");
-      } catch (err) {
-        res.status(500).json(err);
-      }
-    } else {
-      res.status(401).json("You can delete only your post!");
+    const post = await Post.findById(postId);
+    if (userId !== post.userId) {
+      const message = ERROR.DELETE_YOURS;
+      throw { message, status: 401, error: message };
     }
+
+    await post.delete();
+    response.send({ message: SUCCESS.DELETED });
   } catch (err) {
-    res.status(500).json(err);
+    response.error(err);
   }
 });
 
 // //GET POST
-router.get("/:id", async (req, res) => {
+router.get("/", async (req, res) => {
+  const response = new Responser(res);
   try {
-    const post = await Post.findById(req.params.id);
-    res.status(200).json(post);
+    const post = await Post.findById(req.query.postId).populate(
+      "user",
+      DEFAULTS.USER_SELECT
+    );
+
+    if (!post) throw { message: "No Post Found!", status: 404 };
+    response.send({ message: SUCCESS.FETCHED, response: post });
   } catch (err) {
-    res.status(500).json(err);
+    response.error(err);
   }
 });
 
 // //GET ALL POSTS
-router.get("/", async (req, res) => {
+router.get("/get-all", async (req, res) => {
+  let reqData = {};
+  const response = new Responser(res);
+
   const username = req.query.user;
+  if (username) reqData.username = username;
   try {
-    let posts;
-    if (username) {
-      posts = await Post.find({ username })
-        .sort({ createdAt: -1 })
-        .populate("user");
-    } else {
-      posts = await Post.find().sort({ createdAt: -1 }).populate("user");
-    }
-    res.status(200).json(posts);
+    const posts = await Post.find(reqData)
+      .sort({ createdAt: -1 })
+      .populate("user", DEFAULTS.USER_SELECT);
+    if (!posts.length) throw { message: "No Posts Found!", status: 404 };
+    response.send({ message: SUCCESS.FETCHED, response: posts });
   } catch (err) {
-    res.status(500).json(err);
+    response.error(err);
   }
 });
 
 //like
-router.put("/:id/like", async (req, res) => {
+router.put("/like", verifyToken, async (req, res) => {
+  const { user, postId } = req.body;
+  const response = new Responser(res);
   try {
-    const post = await Post.findById(req.params.id);
-    if (!post.likes.includes(req.body.userId)) {
-      await post.updateOne({ $push: { likes: req.body.userId } });
-      res.status(200).json("liked");
-    } else {
-      await post.updateOne({ $pull: { likes: req.body.userId } });
-      res.status(200).json("like removed");
+    const post = await Post.findById(postId);
+    if (!post.likes.includes(user.userId)) {
+      await post.updateOne({ $push: { likes: user.userId } });
+      return response.send({ message: SUCCESS.LIKE });
     }
+    await post.updateOne({ $pull: { likes: user.userId } });
+    response.send({ message: SUCCESS.UNLIKE });
   } catch (err) {
-    res.status(500).json(err);
-  }
-});
-
-// comments
-
-router.put("/:id/comment", async (req, res) => {
-  try {
-    const post = await Post.findById(req.params.id);
-    await post.updateOne({
-      $push: { comments: req.body.comments, userId: req.body.userId },
-    });
-    res.status(200).json(post);
-  } catch (err) {
-    res.status(500).json(err);
+    response.error(err);
   }
 });
 
 //get friends posts
-
-router.get("/timeline/:userId", async (req, res) => {
+router.get("/timeline", verifyToken, async (req, res) => {
+  const { user } = req.body;
+  const response = new Responser(res);
   try {
-    const currentUser = await User.findById(req.params.userId);
+    const currentUser = await User.findById(user.userId);
     const results = await Post.find({
       userId: { $in: currentUser.followings },
     })
       .sort({ createdAt: -1 })
-      .populate("user");
-    if (!results) return res.status(404).json([]);
-    res.status(200).json(results);
+      .populate("user", DEFAULTS.USER_SELECT);
+    if (!results.length) throw { message: "No Posts Found!", status: 404 };
+    response.send({ message: SUCCESS.FETCHED, response: results });
   } catch (err) {
-    res.status(500).json(err);
+    response.error(err);
   }
 });
 
 //get user all posts
+router.get("/profile", async (req, res) => {
+  const { userId } = req.query;
+  const response = new Responser(res);
 
-router.get("/profile/:username", async (req, res) => {
   try {
-    const user = await User.findOne({ username: req.params.username });
-    const posts = await Post.find({ username: user.username })
+    const posts = await Post.find({ userId })
       .sort({ createdAt: -1 })
-      .populate("user");
-    res.status(200).json(posts);
+      .populate("user", DEFAULTS.USER_SELECT);
+    if (!posts.length) throw { message: "No Posts Found!", status: 404 };
+    response.send({ message: SUCCESS.FETCHED, response: posts });
   } catch (err) {
-    res.status(500).json(err);
+    response.error(err);
   }
 });
 

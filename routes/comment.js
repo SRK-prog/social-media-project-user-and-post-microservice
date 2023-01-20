@@ -1,5 +1,6 @@
 const router = require("express").Router();
 const CommentModel = require("../models/CommentModel");
+const verifyToken = require("../middlewares/verifyToken");
 
 router.get("/", async (req, res) => {
   try {
@@ -14,11 +15,13 @@ router.get("/", async (req, res) => {
   }
 });
 
-router.post("/", async (req, res) => {
+router.post("/", verifyToken, async (req, res) => {
+  const { user, ...rest } = req.body;
   try {
     const comment = await new CommentModel({
-      ...req.body,
-      user: req.body.userId,
+      ...rest,
+      user: user.userId,
+      userId: user.userId,
     }).save();
     res.status(200).json(comment);
   } catch (err) {

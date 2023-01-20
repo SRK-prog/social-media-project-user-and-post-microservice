@@ -14,12 +14,17 @@ router.post("/", async (req, res) => {
 
 //get message
 
-router.get("/:conversationId", async (req, res) => {
+router.get("/get-messages", async (req, res) => {
+  const { skip, limit, conversationId } = req.query;
   try {
-    const messages = await Message.find({
-      conversationId: req.params.conversationId,
-    }).sort({ createdAt: -1 });
-    res.status(200).json(messages);
+    const data = await Message.find({ conversationId })
+      .skip(Number(skip * limit))
+      .limit(Number(limit))
+      .sort({ createdAt: -1 })
+      .exec();
+    const totalDocuments = await Message.count({ conversationId });
+    const total = Math.ceil(totalDocuments / limit);
+    res.status(200).json({ data, total });
   } catch (err) {
     res.status(500).json(err);
   }
