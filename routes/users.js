@@ -2,58 +2,46 @@ const router = require("express").Router();
 const bcrypt = require("bcrypt");
 const User = require("../models/User");
 const Conversation = require("../models/Conversation");
+const Message = require("../models/Message");
+const verifyToken = require("../middlewares/verifyToken");
+const Responser = require("../utils/responser");
+const Parser = require("../utils/parser");
+const { userMessages, DEFAULTS } = require("../constants");
+
+const { SUCCESS, ERROR } = userMessages;
 
 //ProfileUpdate
-router.put("/:id", async (req, res) => {
-  if (req.body.userId === req.params.id || req.body.isAdmin) {
-    if (req.body.password) {
-      try {
-        const salt = await bcrypt.genSalt(10);
-        req.body.password = await bcrypt.hash(req.body.password, salt);
-      } catch (err) {
-        return res.status(500).json(err);
-      }
-    }
-    try {
-      const user = await User.findByIdAndUpdate(
-        req.params.id,
-        { $set: req.body },
-        { new: true }
-      );
-      const { password, ...others } = user._doc;
-      res.status(200).json(others);
-    } catch (err) {
-      return res.status(500).json(err);
-    }
-  } else {
-    return res.status(403).json("You can update only your account!");
-  }
-});
-
-//DeleteProfile
-
-router.delete("/:id", async (req, res) => {
-  if (req.body.userId === req.params.id || req.body.isAdmin) {
-    try {
-      await User.findByIdAndDelete(req.params.id);
-      res.status(200).json("Account has been deleted");
-    } catch (err) {
-      return res.status(500).json(err);
-    }
-  } else {
-    return res.status(403).json("You can delete only your account!");
-  }
-});
-
-//GetProfile
-
-router.get("/:username", async (req, res) => {
+router.put("/", verifyToken, async (req, res) => {
+  const { user } = req.body;
+  const userId = user.userId;
+  const response = new Responser(res);
   try {
-    const user = await User.findOne({ username: req.params.username });
-    const { password, updatedAt, ...others } = user._doc;
-    res.status(200).json(others);
+    if (req.body.password) {
+      const salt = await bcrypt.genSalt(10);
+      req.body.password = await bcrypt.hash(req.body.password, salt);
+    }
+    const data = await User.findByIdAndUpdate(
+      userId,
+      { $set: req.body },
+      { new: true }
+    );
+    const result = Parser.userData(data._doc);
+    response.send({ message: SUCCESS.UPDATED, response: result });
   } catch (err) {
-    res.status(500).json(err);
+    response.error(err);
+  }
+});
+
+//Delete Profile
+router.delete("/", verifyToken, async (req, res) => {
+  const { user } = req.body;
+  const userId = user._id;
+  const response = new Responser(res);
+  try {
+    await User.findByIdAndDelete(userId);
+    response.send({ message: SUCCESS.DELETED });
+  } catch (err) {
+    response.error(err);
   }
 });
 
@@ -61,26 +49,28 @@ router.get("/:username", async (req, res) => {
 router.get("/", async (req, res) => {
   const userId = req.query.userId;
   const username = req.query.username;
+  const response = new Responser(res);
+  const select = req.query.select || DEFAULTS.USER_SELECT;
   const query = userId ? { _id: userId } : { username };
-  if (!query) {
-    return res.status(400).json("userId/username missing!");
-  }
+
+  if (!query) throw { message: "Invalid request!", status: 400 };
   try {
-    const user = await User.findOne(query).select(
-      "username email profilepicture createdAt lastSeen"
-    );
-    res.status(200).json(user);
+    const user = await User.findOne(query).select(select);
+    if (!user) throw { message: "No account Found!", status: 404 };
+    response.send({ message: SUCCESS.FETCHED, response: user });
   } catch (err) {
-    res.status(500).json(err);
+    response.error(err);
   }
 });
 
 //follow
+router.put("/profile/follow", verifyToken, async (req, res) => {
+  const { user, profileId } = req.body;
+  const requesterId = user.userId;
+  const response = new Responser(res);
 
-router.put("/profile/follow", async (req, res) => {
-  const { requesterId, profileId } = req.body;
   if (requesterId === profileId)
-    return res.status(403).json("You can't follow yourself");
+    throw { message: ERROR.CANT_FOLLOW_YOUR, status: 403 };
   try {
     const [requester, profile] = await Promise.all([
       User.findById(requesterId),
@@ -88,7 +78,7 @@ router.put("/profile/follow", async (req, res) => {
     ]);
 
     if (!requester || !profile)
-      return res.status(404).json("profile or your account is not available");
+      throw { message: ERROR.ACC_PROFILE_MISS, status: 404 };
 
     if (!profile.followers.includes(requesterId)) {
       await Promise.all([
@@ -96,70 +86,71 @@ router.put("/profile/follow", async (req, res) => {
         requester.updateOne({ $push: { followings: profileId } }),
         addConversation(requester, profileId),
       ]);
-      res.status(200).json("followed");
-    } else {
-      await Promise.all([
-        profile.updateOne({ $pull: { followers: requesterId } }),
-        requester.updateOne({ $pull: { followings: profileId } }),
-        removeConversation(requester, profileId),
-      ]);
-      res.status(200).json("unfollowed");
+      return response.send({ message: SUCCESS.FOLLOWED });
     }
+
+    await Promise.all([
+      profile.updateOne({ $pull: { followers: requesterId } }),
+      requester.updateOne({ $pull: { followings: profileId } }),
+      removeConversation(requester, profileId),
+    ]);
+    response.send({ message: SUCCESS.UNFOLLOWED });
   } catch (error) {
-    res.status(500).json(error);
+    response.error(error);
   }
 });
 
 async function addConversation(user, profileId) {
   if (!user.followers.includes(profileId)) {
-    await new Conversation({ members: [user._id.toString(), profileId] }).save();
+    await new Conversation({
+      members: [user._id.toString(), profileId],
+    }).save();
   }
 }
 
 async function removeConversation(user, profileId) {
   if (!user.followers.includes(profileId)) {
-    await Conversation.findOneAndDelete({
+    const convData = await Conversation.findOneAndDelete({
       members: { $all: [user._id.toString(), profileId] },
     });
+    await Message.deleteMany({ conversationId: convData._id.toString() });
   }
 }
 
-//get friends
-router.get("/followingfrnds/:userId", async (req, res) => {
+//get followings
+router.get("/get-followings", async (req, res) => {
+  const { userId } = req.query;
+  const response = new Responser(res);
   try {
-    const user = await User.findById(req.params.userId);
-    const friends = await Promise.all(
-      user.followings.map((friendId) => {
-        return User.findById(friendId);
-      })
+    const { followings } = await User.findById(userId);
+    if (!followings.length)
+      throw { message: "No following found!", status: 404 };
+
+    const result = await User.find({ _id: { $in: followings } }).select(
+      DEFAULTS.USER_SELECT
     );
-    let friendList = [];
-    friends.map((friend) => {
-      const { _id, username, profilepicture } = friend;
-      friendList.push({ _id, username, profilepicture });
-    });
-    res.status(200).json(friendList);
+
+    response.send({ message: SUCCESS.FOLLOWING_FETCHED, response: result });
   } catch (err) {
-    res.status(500).json(err);
+    response.error(err);
   }
 });
 
-router.get("/followerfrnds/:userId", async (req, res) => {
+router.get("/get-followers", async (req, res) => {
+  const { userId } = req.query;
+  const response = new Responser(res);
   try {
-    const user = await User.findById(req.params.userId);
-    const friends = await Promise.all(
-      user.followers.map((friendId) => {
-        return User.findById(friendId);
-      })
+    const { followers } = await User.findById(userId);
+    if (!followers.length)
+      throw { message: "No following found!", status: 404 };
+
+    const result = await User.find({ _id: { $in: followers } }).select(
+      DEFAULTS.USER_SELECT
     );
-    let FollowersList = [];
-    friends.map((friend) => {
-      const { _id, username, profilepicture } = friend;
-      FollowersList.push({ _id, username, profilepicture });
-    });
-    res.status(200).json(FollowersList);
+
+    response.send({ message: SUCCESS.FOLLOWERS_FETCHED, response: result });
   } catch (err) {
-    res.status(500).json(err);
+    response.error(err);
   }
 });
 

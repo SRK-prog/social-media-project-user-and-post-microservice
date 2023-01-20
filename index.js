@@ -10,11 +10,13 @@ const mailRoute = require("./routes/mails");
 const searchRoute = require("./routes/search");
 const commentRoute = require("./routes/comment");
 const cors = require("cors");
+const morgan = require("morgan");
 
 const app = express();
 dotenv.config();
 app.use(express.json());
 app.use(cors());
+app.use(morgan(":method :url :response-time"));
 
 const PORT = process.env.PORT || 5000;
 
@@ -35,5 +37,9 @@ app.use("/api/search", searchRoute);
 app.use("/api/comments", commentRoute);
 
 app.listen(PORT, () => {
-  console.log("server running on", PORT);
+  console.log("server running on ", PORT);
+
+  if (process.env.NODE_ENV === "development") {
+    console.log("local: ", `http://localhost:${PORT}/`);
+  }
 });
