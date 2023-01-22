@@ -9,6 +9,20 @@ class Validator {
     });
     await validate(schema, req.body, res, next);
   };
+
+  static email = async (req, res, next) => {
+    const schema = yup.object().shape({
+      email: yup.string().email().required(),
+    });
+    await validate(schema, req.body, res, next);
+  };
+
+  static password = async (req, res, next) => {
+    const schema = yup.object().shape({
+      password: yup.string().required(),
+    });
+    await validate(schema, req.body, res, next);
+  };
 }
 
 const validate = async (schema, req, res, next) => {

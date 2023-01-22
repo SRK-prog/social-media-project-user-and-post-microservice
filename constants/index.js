@@ -1,5 +1,5 @@
 const DEFAULTS = {
-  USER_SELECT: "username email profilepicture createdAt lastSeen",
+  USER_SELECT: "userId username email profilepicture createdAt lastSeen",
 };
 
 const errorMessages = {
@@ -45,7 +45,16 @@ const userMessages = {
     UPDATING: "An error occured while updating a account",
     DELETING: "An error occured while deleting a account",
     CANT_FOLLOW_YOUR: "You can't follow yourself",
-    ACC_PROFILE_MISS: "profile or your account is not available"
+    ACC_PROFILE_MISS: "profile or your account is not available",
+  },
+};
+
+const resetMessages = {
+  SUCCESS: {
+    LINK_SENT: "password reset link sent to your email account",
+  },
+  ERROR: {
+    EMAIL_NOT_EXIST: "given email doesn't exist",
   },
 };
 
@@ -53,5 +62,6 @@ module.exports = {
   errorMessages,
   postMessages,
   userMessages,
+  resetMessages,
   DEFAULTS,
 };

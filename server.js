@@ -9,6 +9,7 @@ const messageRoute = require("./routes/messages");
 const mailRoute = require("./routes/mails");
 const searchRoute = require("./routes/search");
 const commentRoute = require("./routes/comment");
+const resetPassword = require("./routes/resetPassword");
 const cors = require("cors");
 const morgan = require("morgan");
 
@@ -35,6 +36,7 @@ app.use("/api/messages", messageRoute);
 app.use("/api/mail", mailRoute);
 app.use("/api/search", searchRoute);
 app.use("/api/comments", commentRoute);
+app.use("/api/reset", resetPassword);
 
 app.listen(PORT, () => {
   console.log("server running on ", PORT);
