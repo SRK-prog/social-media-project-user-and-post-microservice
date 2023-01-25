@@ -1,18 +1,9 @@
 const mongoose = require("mongoose");
 const MailSchema = new mongoose.Schema(
   {
-    sendername: {
-      type: String,
-      required: true,
-    },
-    senderemail: {
-      type: String,
-      required: true,
-    },
-    message: {
-      type: String,
-      required: true,
-    },
+    senderName: { type: String, required: true },
+    senderEmail: { type: String, required: true },
+    message: { type: String, required: true },
   },
   { timestamps: true }
 );
