@@ -1,13 +1,15 @@
 const router = require("express").Router();
 const Mail = require("../models/Mail");
+const Responser = require("../utils/responser");
 
-//CREATE POST
+//SAVE EMAIL
 router.post("/", async (req, res) => {
+  const response = new Responser(res);
   try {
-    const result = await new Mail(req.body).save();
-    res.status(200).json(result);
+    await new Mail(req.body).save();
+    response.send({ message: "Message sent successfully" });
   } catch (err) {
-    res.status(500).json(err);
+    response.error(err);
   }
 });
 
